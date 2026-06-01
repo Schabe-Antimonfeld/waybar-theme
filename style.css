@@ -19,15 +19,13 @@ window#waybar {
 .modules-right
 {
     background: rgba(0, 0, 8, .7);
-    margin: 5px 10px;
-    padding: 0 5px;
+    margin: 5px 8px;
+    padding: 0 8px;
     border-radius: 15px;
 }
-.modules-left {
-    padding: 0;
-}
+
 .modules-center {
-    padding: 0 10px;
+    padding: 0 14px;
 }
 
 #clock,
@@ -46,9 +44,11 @@ window#waybar {
 #idle_inhibitor,
 #scratchpad,
 #power-profiles-daemon,
-#language,
+#custom-input,
+#custom-vpn,
+#window,
 #mpd {
-    padding: 0 10px;
+    padding: 0 9px;
     border-radius: 15px;
 }
 
@@ -68,14 +68,33 @@ window#waybar {
 #idle_inhibitor:hover,
 #scratchpad:hover,
 #power-profiles-daemon:hover,
-#language:hover,
+#custom-input:hover,
+#custom-vpn:hover,
+#window:hover,
 #mpd:hover {
     background: rgba(26, 27, 38, 0.9);
+}
+
+window#waybar.empty .modules-center {
+    background: transparent;
+    margin: 0;
+    padding: 0;
+}
+
+window#waybar.empty #window {
+    background: transparent;
+    color: transparent;
+    font-size: 0;
+    margin: 0;
+    min-width: 0;
+    padding: 0;
 }
 
 
 #workspaces button {
   background: transparent;
+  min-width: 30px;
+  padding: 0 8px;
   font-family:
     SpaceMono Nerd Font,
     feather;
@@ -87,7 +106,9 @@ window#waybar {
 }
 
 #workspaces button.active {
-    background: #13131d; 
+    background: #7aa2f7;
+    color: #11111b;
+    box-shadow: inset 0 -3px #c0caf5;
 }
 
 #workspaces button:hover {
@@ -104,4 +125,21 @@ window#waybar {
 }
 #custom-arch:hover {
     color: #1793d1;
+}
+
+menu {
+    background: rgba(26, 27, 38, 0.96);
+    border: 1px solid rgba(122, 162, 247, 0.35);
+    border-radius: 12px;
+    padding: 6px;
+    color: #c0caf5;
+}
+
+menuitem {
+    border-radius: 8px;
+    padding: 8px 14px;
+}
+
+menuitem:hover {
+    background: rgba(122, 162, 247, 0.18);
 }

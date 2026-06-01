@@ -14,17 +14,15 @@
         "hyprland/window"
     ],
     "modules-right": [
-        "tray",
-        "keyboard-state",
-        "idle_inhibitor",
-        "pulseaudio",
+        "custom/vpn",
         "network",
+        "pulseaudio",
+        "custom/input",
         "cpu",
         "memory",
         "temperature",
         "battery",
-        "battery#bat2",
-        "clock",
+        "clock"
     ],
     //Modules configuration
 

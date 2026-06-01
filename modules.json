@@ -2,7 +2,15 @@
     "custom/arch": {
         "format": "󰣇",
         "tooltip": true,
-        "tooltip-format": "btw"
+        "tooltip-format": "Power menu",
+        "menu": "on-click",
+        "menu-file": "~/.config/waybar/power_menu.xml",
+        "menu-actions": {
+            "suspend": "systemctl suspend",
+            "logout": "hyprctl dispatch exit",
+            "reboot": "systemctl reboot",
+            "shutdown": "systemctl poweroff"
+        }
     },
 
 
@@ -17,12 +25,19 @@
             "default": ""
         }
     },
+    "hyprland/window": {
+        "max-length": 50,
+        "separate-outputs": true
+    },
     "idle_inhibitor": {
         "format": "{icon}",
         "format-icons": {
             "activated": "",
             "deactivated": ""
         }
+    },
+    "tray": {
+        "spacing": 10
     },
     "pulseaudio": {
         "format": "{icon}  {volume}%",
@@ -42,14 +57,22 @@
         },
         "on-click": "pavucontrol"
     },
+    "custom/vpn": {
+        "exec": "sh -c 'case \"$(gsettings get org.gnome.system.proxy mode 2>/dev/null)\" in \"'\\''manual'\\''\"|\"'\\''auto'\\''\") echo \"󰖂  VPN ON\" ;; *) echo \"󰖂  VPN OFF\" ;; esac'",
+        "interval": 1,
+        "format": "{}",
+        "tooltip": true,
+        "tooltip-format": "Clash Verge",
+        "on-click": "python3 /home/schabe/.config/waybar/open_network_menu.py clash"
+    },
     "network": {
         "format-wifi": "   {essid} ({signalStrength}%)",
         "format-ethernet": "{ipaddr}/{cidr} ",
         "tooltip-format": "{ifname} via {gwaddr} ",
         "format-linked": "{ifname} (No IP) ",
         "format-disconnected": "Disconnected ⚠",
-	"on-click": "sh ~/scripts/rofi-wifi-menu/rofi-wifi-menu.sh"
-	 
+        "on-click": "python3 /home/schabe/.config/waybar/open_network_menu.py"
+
     },
     "cpu": {
         "format": "  {usage}%",
@@ -61,15 +84,17 @@
     },
     "temperature": {
         "interval": 10,
-        "hwmon-path": "/sys/devices/platform/coretemp.0/hwmon/hwmon4/temp1_input",
+        "hwmon-path": "/sys/class/hwmon/hwmon4/temp1_input",
         "critical-threshold": 100,
         "format-critical": " {temperatureC}",
         "format": " {temperatureC}°C"
     },
-    "hyprland/language": {
-       "format": "  {}",
-       "format-en": "EN",
-       "format-ru": "RU"
+    "custom/input": {
+        "exec": "sh -c 'case \"$(fcitx5-remote -n)\" in rime) echo 中 ;; keyboard-us) echo EN ;; *) fcitx5-remote -n ;; esac'",
+        "interval": 1,
+        "format": "  {text}",
+        "on-click": "sh -c 'current=$(fcitx5-remote -n); if [ \"$current\" = rime ]; then fcitx5-remote -s keyboard-us; else fcitx5-remote -s rime; fi'",
+        "tooltip-format": "Fcitx5: {text}"
     },
     "battery": {
         "states": {
@@ -82,9 +107,6 @@
         "format-plugged": "  {capacity}%",
         "format-alt": "{time}  {icon}",
         "format-icons": ["", "", "", "", ""]
-    },
-    "battery#bat2": {
-        "bat": "BAT2"
     },
     "clock": {
         "format": "{:%H:%M | %e %B} ",
