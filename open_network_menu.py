@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import pathlib
 import re
 import subprocess
 import sys
@@ -13,12 +14,13 @@ from gi.repository import DbusmenuGtk3, Gdk, Gio, GLib, Gtk, GtkLayerShell
 
 
 LOG_PATH = "/tmp/waybar-network-menu.log"
+CACHE_PATH = pathlib.Path("/tmp/waybar-tray-menu-cache")
 WATCHER_BUS = "org.kde.StatusNotifierWatcher"
 WATCHER_PATH = "/StatusNotifierWatcher"
 WATCHER_IFACE = "org.kde.StatusNotifierWatcher"
 ITEM_IFACE = "org.kde.StatusNotifierItem"
-MENU_LOAD_DELAY_MS = 100
-QUIT_DELAY_MS = 600
+MENU_LOAD_DELAY_MS = 30
+QUIT_DELAY_MS = 350
 ANCHOR_SIZE = 1
 WAYBAR_OFFSET = 80
 TARGET_ALIASES = {
@@ -26,19 +28,25 @@ TARGET_ALIASES = {
 }
 TARGETS = {
     "network": {
-        "fallback": ["nm-connection-editor"],
         "markers": (
             "nm-applet",
             "nm_applet",
             "networkmanager",
             "network manager",
         ),
+        "paths": (
+            "/org/ayatana/NotificationItem/nm_applet",
+            "/StatusNotifierItem",
+        ),
     },
     "clash": {
-        "fallback": ["clash-verge"],
         "markers": (
             "clash-verge",
             "clash verge",
+        ),
+        "paths": (
+            "/org/ayatana/NotificationItem/tray_icon_tray_app_main",
+            "/StatusNotifierItem",
         ),
     },
 }
@@ -78,7 +86,28 @@ def log(message):
         log_file.write(f"{message}\n")
 
 
-def property_value(bus, destination, path, interface, name):
+def cache_path(target_name):
+    return CACHE_PATH.with_name(f"{CACHE_PATH.name}-{target_name}")
+
+
+def cached_item(target_name):
+    path = cache_path(target_name)
+    try:
+        item = path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+
+    return item or None
+
+
+def write_cache(target_name, item):
+    try:
+        cache_path(target_name).write_text(f"{item}\n", encoding="utf-8")
+    except OSError as error:
+        log(f"Cache write error: {error}")
+
+
+def property_value(bus, destination, path, interface, name, timeout=1000):
     result = bus.call_sync(
         destination,
         path,
@@ -87,7 +116,7 @@ def property_value(bus, destination, path, interface, name):
         GLib.Variant("(ss)", (interface, name)),
         GLib.VariantType.new("(v)"),
         Gio.DBusCallFlags.NONE,
-        1000,
+        timeout,
         None,
     )
     return result.get_child_value(0).get_variant().unpack()
@@ -104,6 +133,46 @@ def registered_items(bus):
     )
 
 
+def bus_names(bus):
+    result = bus.call_sync(
+        "org.freedesktop.DBus",
+        "/org/freedesktop/DBus",
+        "org.freedesktop.DBus",
+        "ListNames",
+        None,
+        GLib.VariantType.new("(as)"),
+        Gio.DBusCallFlags.NONE,
+        1000,
+        None,
+    )
+    return result.unpack()[0]
+
+
+def discover_items(bus, target):
+    log("Scanning StatusNotifierItem candidates")
+    items = []
+
+    try:
+        names = bus_names(bus)
+    except GLib.Error as error:
+        log(f"ListNames error: {error.message}")
+        return items
+
+    for name in names:
+        if not name.startswith(":"):
+            continue
+
+        for path in target["paths"]:
+            raw_item = f"{name}{path}"
+            if item_matches(bus, name, path, raw_item, target, 100):
+                items.append(raw_item)
+                log(f"Scanned items: {items}")
+                return items
+
+    log(f"Scanned items: {items}")
+    return items
+
+
 def parse_item(item):
     log(f"Parsing item: {item}")
     if "/" not in item:
@@ -113,19 +182,29 @@ def parse_item(item):
     return destination, f"/{path}"
 
 
-def item_matches(bus, destination, path, raw_item, target):
-    candidates = [raw_item, path]
+def item_matches(bus, destination, path, raw_item, target, timeout=1000):
+    candidates = [raw_item] if timeout == 1000 else []
+    markers = target["markers"]
+
+    text = " ".join(str(value).lower() for value in candidates)
+    if any(marker in text for marker in markers):
+        log(f"{destination}{path} matched: True")
+        return True
 
     for name in ("Id", "Title", "IconName"):
         try:
-            value = property_value(bus, destination, path, ITEM_IFACE, name)
+            value = property_value(bus, destination, path, ITEM_IFACE, name, timeout)
             candidates.append(value)
             log(f"{destination}{path} {name}: {value}")
+            text = " ".join(str(value).lower() for value in candidates)
+            if any(marker in text for marker in markers):
+                log(f"{destination}{path} matched: True")
+                return True
         except GLib.Error as error:
             log(f"{destination}{path} {name} error: {error.message}")
 
     text = " ".join(str(value).lower() for value in candidates)
-    matched = any(marker in text for marker in target["markers"])
+    matched = any(marker in text for marker in markers)
     log(f"{destination}{path} matched: {matched}")
     return matched
 
@@ -296,11 +375,6 @@ def open_dbus_menu(bus, destination, path):
     return opened["value"]
 
 
-def open_fallback(target):
-    log(f"Opening fallback: {' '.join(target['fallback'])}")
-    subprocess.Popen(target["fallback"])
-
-
 def resolve_target():
     requested = sys.argv[1] if len(sys.argv) > 1 else "network"
     name = TARGET_ALIASES.get(requested, requested)
@@ -316,12 +390,28 @@ def main():
     log(f"--- invocation: {target_name} ---")
     try:
         bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+    except GLib.Error as error:
+        log(f"DBus setup error: {error.message}")
+        return 1
+
+    item = cached_item(target_name)
+    if item is not None:
+        log(f"Trying cached item: {item}")
+        destination, path = parse_item(item)
+        if item_matches(bus, destination, path, item, target, 100) and open_dbus_menu(
+            bus,
+            destination,
+            path,
+        ):
+            log(f"Opened cached {target_name} tray menu")
+            return 0
+
+    try:
         items = registered_items(bus)
         log(f"Registered items: {items}")
     except GLib.Error as error:
-        log(f"DBus setup error: {error.message}")
-        open_fallback(target)
-        return 1
+        log(f"StatusNotifierWatcher error: {error.message}")
+        items = discover_items(bus, target)
 
     for item in items:
         destination, path = parse_item(item)
@@ -330,11 +420,11 @@ def main():
             destination,
             path,
         ):
+            write_cache(target_name, item)
             log(f"Opened {target_name} tray menu")
             return 0
 
     log(f"No matching {target_name} tray item opened")
-    open_fallback(target)
     return 1
 
 

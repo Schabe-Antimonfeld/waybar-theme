@@ -22,7 +22,8 @@
         "memory",
         "temperature",
         "battery",
-        "clock"
+        "clock",
+        "tray"
     ],
     //Modules configuration
 

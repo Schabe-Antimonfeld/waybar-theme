@@ -37,7 +37,8 @@
         }
     },
     "tray": {
-        "spacing": 10
+        "icon-size": 1,
+        "spacing": 0
     },
     "pulseaudio": {
         "format": "{icon}  {volume}%",
